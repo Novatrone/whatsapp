@@ -13,7 +13,7 @@ export default function Template() {
     const [headerType, setHeaderType] = useState('TEXT');
     const [headerImage, setHeaderImage] = useState(null);
     const [buttons, setButtons] = useState([]);
-    const [buttonType, setButtonType] = useState('URL');
+    const [buttonType, setButtonType] = useState('QUICK_REPLY');
     const [buttonText, setButtonText] = useState('');
     const [buttonUrl, setButtonUrl] = useState('');
     const [showButtons, setShowButtons] = useState(false);
@@ -48,7 +48,7 @@ export default function Template() {
         }, {});
         setBodyDynamicFields(fields);
     }, [body]);
-    
+
 
     const handleHeaderDynamicFieldChange = (value) => {
         setHeaderDynamicField(value);
@@ -60,7 +60,6 @@ export default function Template() {
             [key]: value,
         }));
     };
-
 
     const handleAddButton = () => {
         if (buttonText.trim() === '') {
@@ -88,7 +87,8 @@ export default function Template() {
         setLoading(true);
         setError('');
 
-        const bodyExampleData = Object.keys(bodyDynamicFields).length > 0 ? { example: bodyDynamicFields } : undefined;
+        const headerExampleData = headerDynamicField ? { header_text: [headerDynamicField] } : undefined;
+        const bodyExampleData = Object.keys(bodyDynamicFields).length > 0 ? { body_text: [Object.values(bodyDynamicFields)] } : undefined;
 
         const newTemplateData = {
             name: title,
@@ -99,7 +99,7 @@ export default function Template() {
                     type: "HEADER",
                     format: headerType,
                     ...(headerType === 'TEXT' && { text: headerText }),
-                    ...(headerType === 'IMAGE' && { image: headerImage }),
+                    ...(headerExampleData && { example: headerExampleData })
                 },
                 {
                     type: "BODY",
@@ -127,7 +127,6 @@ export default function Template() {
             setLoading(false);
         }
     };
-
 
     return (
         <Container>
@@ -273,13 +272,13 @@ export default function Template() {
                                     <h3>Buttons</h3>
                                     <Form.Check
                                         type="switch"
-                                        id="buttons-switch"
+                                        id="button-switch"
                                         label="Show Buttons"
                                         checked={showButtons}
                                         onChange={(e) => setShowButtons(e.target.checked)}
                                     />
                                 </div>
-                                {showButtons ? (
+                                {showButtons && (
                                     <>
                                         <Form.Group as={Row} controlId="formButtonType">
                                             <Form.Label column sm={12}>Button Type</Form.Label>
@@ -289,9 +288,9 @@ export default function Template() {
                                                     value={buttonType}
                                                     onChange={(e) => setButtonType(e.target.value)}
                                                 >
+                                                    <option value="QUICK_REPLY">Quick Reply</option>
                                                     <option value="URL">URL</option>
                                                     <option value="PHONE_NUMBER">Phone Number</option>
-                                                    <option value="QUICK_REPLY">Quick Reply</option>
                                                 </Form.Control>
                                             </Col>
                                         </Form.Group>
@@ -307,36 +306,50 @@ export default function Template() {
                                                 />
                                             </Col>
                                         </Form.Group>
-                                        {(buttonType === 'URL' || buttonType === 'PHONE_NUMBER') && (
+                                        {buttonType !== 'QUICK_REPLY' && (
                                             <Form.Group as={Row} controlId="formButtonUrl">
-                                                <Form.Label column sm={12}>Button {buttonType === 'URL' ? 'URL' : 'Phone Number'}</Form.Label>
+                                                <Form.Label column sm={12}>
+                                                    {buttonType === 'URL' ? 'URL' : 'Phone Number'}
+                                                </Form.Label>
                                                 <Col sm={12}>
                                                     <Form.Control
                                                         type="text"
-                                                        placeholder={`Enter button ${buttonType === 'URL' ? 'URL' : 'phone number'}`}
+                                                        placeholder={`Enter ${buttonType === 'URL' ? 'URL' : 'phone number'}`}
                                                         value={buttonUrl}
                                                         onChange={(e) => setButtonUrl(e.target.value)}
+                                                        required
                                                     />
                                                 </Col>
                                             </Form.Group>
                                         )}
-                                        <Button variant="secondary" onClick={handleAddButton} className="mt-3">Add Button</Button>
-                                        <ul className="list-unstyled mt-3">
-                                            {buttons.map((button, index) => (
-                                                <li key={index} className="d-flex justify-content-between align-items-center">
-                                                    <span>{button.type} - {button.text}</span>
-                                                    <Button variant="danger" size="sm" onClick={() => handleRemoveButton(index)}>Remove</Button>
-                                                </li>
+                                        <Button variant="primary" onClick={handleAddButton}>
+                                            Add Button
+                                        </Button>
+                                        {error && <p className="text-danger mt-2">{error}</p>}
+                                        <div className='mt-3'>
+                                            {buttons.map((btn, index) => (
+                                                <Card key={index} className='p-2 mb-2'>
+                                                    <Card.Body>
+                                                        <h6>{btn.text}</h6>
+                                                        <p>{btn.type}</p>
+                                                        {btn.url && <p>URL: {btn.url}</p>}
+                                                        {btn.phone_number && <p>Phone: {btn.phone_number}</p>}
+                                                        <Button
+                                                            variant="danger"
+                                                            size="sm"
+                                                            onClick={() => handleRemoveButton(index)}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    </Card.Body>
+                                                </Card>
                                             ))}
-                                        </ul>
+                                        </div>
                                     </>
-                                ) : (
-                                    <p>Add optional Button</p>
                                 )}
                             </div>
                         </div>
                     </Col>
-                    {/* Preview */}
                     <Col className='bg-light' md={7} xs={12}>
                         <div className='bg-light d-flex justify-content-center pt-5'>
                             <Card style={{ width: '18rem' }}>
@@ -358,10 +371,10 @@ export default function Template() {
                         </div>
                     </Col>
                 </Row>
-                <Button className='mt-4' type='submit' disabled={loading}>
-                    {loading ? 'Creating...' : 'Add New Template'}
+                <Button type="submit" className="mt-4" disabled={loading}>
+                    {loading ? 'Creating Template...' : 'Create Template'}
                 </Button>
-                {error && <p className="text-danger">{error}</p>}
+                {error && <p className="text-danger mt-3">{error}</p>}
             </Form>
         </Container>
     );
