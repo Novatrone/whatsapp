@@ -2,8 +2,8 @@ import {
     BrowserRouter,
     Routes,
     Route,
-    Outlet,
-    Navigate,
+    // Outlet,
+    // Navigate,
 } from "react-router-dom";
 import Home from "../page/home";
 import Template from "../page/template";

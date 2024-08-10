@@ -5,7 +5,7 @@ import { faCheckDouble, faCheck, faMessage, faPaperclip, faPaperPlane, faSmile, 
 import { getTemplates, sendMessage } from '../../service/whatsappApi'; // Ensure this function returns a promise
 import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
-const SOCKET_SERVER_URL = 'http://localhost:5000';
+const SOCKET_SERVER_URL = 'localhost:5000';
 
 const userData = [
   { id: 1, name: 'Monika', phone: "+918839527514" },
@@ -21,39 +21,120 @@ function Home() {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [template, setTemplate] = useState('');
   const [templatesData, setTemplatesData] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState({})
   const [mobileView, setMobileView] = useState(false); // New state for mobile view
   const [selectedUser, setSelectedUser] = useState();
+
+
+  const [headerParams, setHeaderParams] = useState([]);
   const [params, setParams] = useState([]);
+  // const [footerParams, setFooterParams] = useState([]);
+
+
+
   const [socket, setSocket] = useState(null);
   const [show, setShow] = useState(false);
+  const [modalStep, setModalStep] = useState(true);
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
+  // const token = localStorage.getItem('token');
+  // console.log("token: ", token);
+
+  // useEffect(() => {
+  //   localStorage.setItem('token', 'EAAQ2pVDAA4oBOzNBqhn8v2SU9z8ldbG03XsNRvu1oZC6CVZBIcD79xqz2CbdM2zv6NsKIJau3p1mm3RyqlaXipnIXVjZCHVGsZADL19TXaAKO4I4CBiX5GykXBckV1HWDtANOpkZAJbIYRvSmvGmIIYjMMxVNXooZARFv0CfosZCcZAJI6rl4vJmXZAP8MDqD7bFIOETLrxZCGb19uSRC1Iw8ZD')
+  // }, [])
 
   const navigate = useNavigate();
 
   const scrollRef = useRef(null);
 
-  const SendTemplate = (val, paramsCount) => {
-    setTemplate(val);
-    setParams(Array(paramsCount).fill(''));
+  const SendTemplate = (val) => {
+    let component = val.components;
+
+    // Initialize empty parameters
+    let headerParams = [];
+    let bodyParams = [];
+    // let footerParams = [];
+
+    // Function to extract parameters from text
+    const extractParameters = (text) => {
+      const regex = /{{(\d+)}}/g;
+      let match;
+      let parameters = [];
+
+      while ((match = regex.exec(text)) !== null) {
+        parameters.push(match[1]);
+      }
+
+      return parameters;
+    };
+
+    // Iterate over the components to set headerParams, bodyParams, and footerParams
+    component.forEach(item => {
+      switch (item.type) {
+        case "HEADER":
+          headerParams = extractParameters(item.text);
+          break;
+        case "BODY":
+          bodyParams = extractParameters(item.text);
+          break;
+        // case "FOOTER":
+        //   footerParams = [item.text];
+        //   break;
+        default:
+          // Handle other types or do nothing
+          break;
+      }
+    });
+
+    // Set the state and other values
+    setTemplate(val.name);
+    setSelectedTemplate(val);
+    setModalStep(false);
+    setHeaderParams(headerParams);
+    setParams(bodyParams);
+    // setFooterParams(footerParams);
   };
 
-  const handleParamChange = (index, value) => {
+
+  const handleHeaderParamChange = (index, value) => {
+    const newParams = [...headerParams];
+    newParams[index] = value;
+    setHeaderParams(newParams);
+  }
+
+  const handleBodyParamChange = (index, value) => {
     const newParams = [...params];
     newParams[index] = value;
     setParams(newParams);
   };
 
+  // const handleFooterParamChange = (index, value) => {
+  //   const newParams = [...params];
+  //   newParams[index] = value;
+  //   setFooterParams(newParams);
+  // }
+
 
   useEffect(() => {
-    if (show) {
-      getTemplates().then((data) => {
-        console.log("data: ", data);
-        if (data && data.data) {
-          setTemplatesData(data.data); // Adjust based on API response structure
+    // Define an async function inside useEffect
+    const fetchData = async () => {
+      try {
+        if (show) {
+          // const token = await getToken();
+          const data = await getTemplates();
+  
+          if (data && data.data) {
+            setTemplatesData(data.data); // Adjust based on API response structure
+          }
         }
-      });
-    }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    };
+  
+    // Call the async function
+    fetchData();
   }, [show]);
 
   const handleSendMessage = () => {
@@ -82,7 +163,7 @@ function Home() {
     // Save chat history to local storage
     localStorage.setItem(`chatHistory_${selectedUser.id}`, JSON.stringify(updatedChatHistory));
 
-    sendMessage(to, content, params, type)
+    sendMessage(to, content, params, type ,headerParams)
       .then((id) => {
         // Update status to 'delivered' and set the message ID
         newMessage.status = 'delivered';
@@ -111,7 +192,6 @@ function Home() {
         // Save updated chat history to local storage
         localStorage.setItem(`chatHistory_${selectedUser.id}`, JSON.stringify(updatedChatHistory));
 
-        console.error('Failed to send message:', error);
       });
   };
 
@@ -352,6 +432,7 @@ function Home() {
   };
 
 
+
   useEffect(() => {
     const socketConnection = io(SOCKET_SERVER_URL);
     setSocket(socketConnection);
@@ -578,36 +659,133 @@ function Home() {
       </div >
       <FullScreenView />
 
-      <Modal show={show} onHide={handleClose}>
+      <Modal size="lg" centered show={show} onHide={handleClose}>
         <Modal.Header closeButton>
           <Modal.Title>Select Template</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className='d-flex gap-2 mb-4'>
-            {templatesData.map((template, index) =>
-              <Card className='p-2' variant="primary" onClick={() => SendTemplate(template.name, 0)}>
-                <h6>{template.name}</h6>
-              </Card>
-            )}
-            <Button className='p-2' variant="primary" onClick={() => navigate('/template')}>
-              <h6>Add New Template</h6>
-            </Button>
-          </div>
+          {modalStep ?
+            <Container>
+              <Row>
+                {templatesData.map((template, index) => (
+                  <Col key={template.id} xs={12} md={4}>
+                    <Card className='mb-3 template-card' style={{ cursor: "pointer", }} onClick={() => SendTemplate(template)}>
+                      <Card.Body>
+                        <Card.Title className="text-primary">{template.name}</Card.Title>
+                        <Card.Text>
 
-          {params.map((param, index) => (
-            <InputGroup className="mb-3" key={index}>
-              <InputGroup.Text>Parameter {index + 1}</InputGroup.Text>
-              <FormControl
-                value={param}
-                onChange={(e) => handleParamChange(index, e.target.value)}
-              />
-            </InputGroup>
-          ))}
+                          {template.components.map((component, compIndex) => (
+                            <div key={compIndex}>
+                              {component.type === "HEADER" &&
+                                <strong> {component.text}</strong>
+                              }
+                              {component.type === "BODY" &&
+                                <p className='mt-2'> {component.text}</p>
+                              }
+                              {component.type === "FOOTER" &&
+                                <p style={{ fontSize: "12px", color: "GrayText" }} className='mt-2'> {component.text}</p>
+                              }
+                              {component.buttons && (
+                                <div className="mt-2">
+                                  {component.buttons.map((button, btnIndex) => (
+                                    <Button key={btnIndex} size="sm" className=" w-100">
+                                      {button.text}
+                                    </Button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </Card.Text>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+              <Button className='p-2' variant="primary" onClick={() => navigate('/template')}>
+                <h6>Add New Template</h6>
+              </Button>
+            </Container>
+            :
+            <Container>
+              <Row>
+                <Col xs={12} md={8}>
+                  <h6>Header Params value</h6>
+                  {headerParams.map((headerParam, index) => (
+                    <InputGroup className="mb-3" key={index}>
+                      <InputGroup.Text>Parameter {index + 1}</InputGroup.Text>
+                      <FormControl
+                        value={headerParam}
+                        onChange={(e) => handleHeaderParamChange(index, e.target.value)}
+                      />
+                    </InputGroup>
+                  ))}
+                  <h6>Body Params value</h6>
+                  {params.map((param, index) => (
+                    <InputGroup className="mb-3" key={index}>
+                      <InputGroup.Text>Parameter {index + 1}</InputGroup.Text>
+                      <FormControl
+                        value={param}
+                        onChange={(e) => handleBodyParamChange(index, e.target.value)}
+                      />
+                    </InputGroup>
+                  ))}
+                  {/* <h6>Footer Params value</h6>
+                  {footerParams.map((param, index) => (
+                    <InputGroup className="mb-3" key={index}>
+                      <InputGroup.Text>Parameter {index + 1}</InputGroup.Text>
+                      <FormControl
+                        value={param}
+                        onChange={(e) => handleFooterParamChange(index, e.target.value)}
+                      />
+                    </InputGroup>
+                  ))} */}
+                </Col>
+                <Col xs={12} md={4}>
+                  <Card className='mb-3 template-card' style={{ cursor: "pointer", }}>
+                    <Card.Body>
+                      <Card.Title className="text-primary">{selectedTemplate.name}</Card.Title>
+                      <Card.Text>
+
+                        {selectedTemplate.components.map((component, compIndex) => (
+                          <div key={compIndex}>
+                            {component.type === "HEADER" &&
+                              <strong> {component.text}</strong>
+                            }
+                            {component.type === "BODY" &&
+                              <p className='mt-2'> {component.text}</p>
+                            }
+                            {component.type === "FOOTER" &&
+                              <p style={{ fontSize: "12px", color: "GrayText" }} className='mt-2'> {component.text}</p>
+                            }
+                            {component.buttons && (
+                              <div className="mt-2">
+                                {component.buttons.map((button, btnIndex) => (
+                                  <Button key={btnIndex} size="sm" className=" w-100">
+                                    {button.text}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </Card.Text>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+            </Container>
+          }
         </Modal.Body>
         <Modal.Footer>
+          <Button variant="primary" onClick={() => {
+            setModalStep(true)
+            setSelectedTemplate({});
+            setTemplate('');
+          }}>Back</Button>
           <Button variant="primary" onClick={() => setShow(false)}>Select</Button>
         </Modal.Footer>
-      </Modal>
+      </Modal >
     </>
   );
 }
