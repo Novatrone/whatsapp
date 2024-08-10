@@ -29,8 +29,8 @@ import io from "socket.io-client";
 const SOCKET_SERVER_URL = "https://modelpro.craftandcode.in/";
 
 const userData = [
-  { id: 2, name: "Akash Mishra", phone: "+919977927692" },
-  { id: 3, name: "Abhilash", phone: "+917224901787" },
+  { id: 1, name: "Akash Mishra", phone: "+919977927692" },
+  { id: 2, name: "Abhilash", phone: "+917224901787" },
   { id: 3, name: "Alex", phone: "+346050631219" },
 ];
 
