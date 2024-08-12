@@ -1,5 +1,5 @@
 const tokenUrl = 'https://graph.facebook.com/oauth/access_token';
-const token = 'EAAQ2pVDAA4oBO3duyKhtIytodzZBy5cUkr0GUhZCXNUsR32hSMOgQvMOk6MYTZCZAR9S0lrKZBfid7cXMOJrxiqm6cMkiqVUIxkBVBHJrVdiaAtEywc8mvJCc6A8MXLu4UnYyMviVRRElBmJ3BtttIZAYBTMWPqP3QZBGgOj2WdIgEDqZANizPJpxSZB0zYQsKf2R7NlQ4p3qOSi7otrCwHkZD';
+const token = 'EAAQ2pVDAA4oBOZBQIR0YvCKAjqX49Ub1FZCZCLTMtDXWcZA7mn5pZBh5Y8XjSspZBOT3iYzHYD1gcZBzDY5uRkE1uN7vZBamCsAhlZB2lEL6v3FZBS0KsZCGedhSDzdrMRiZAvA9GmbjyWxgZAIQtuZCJ9O6VxH0mX01lR556cFqXWkmrmmZA7CYJxHXDxK0OFQ3EJuyWJkwKfKo3D8BJNE7Hq5xKQZD';
 const clientId = '1185983559107466';
 const clientSecret = '396033997a1494eb09bc10d7b9672db0';
 const whatsappPhoneNumberId = 395513670310044
@@ -75,7 +75,66 @@ export const sendMessage = async (to, content, bodyParams = [], type = 'text', h
     }
 };
 
+export const getAdminDetails = async () => {
+    const url = `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/phone_numbers`;
 
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to fetch phone numbers');
+        }
+
+        const data = await response.json();
+        console.log('Fetched Phone Numbers:', data);
+        return data;
+    } catch (error) {
+        console.error('Error:', error);
+        throw error;
+    }
+};
+
+
+export const fetchClientProfile = async (clientPhoneNumber) => {
+    const url = `https://graph.facebook.com/v20.0/1185983559107466/contacts`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                blocking: "wait",
+                contacts: [clientPhoneNumber]
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Error fetching client profile:', error);
+            return null;
+        }
+
+        const data = await response.json();
+        const clientProfile = data.contacts[0]; // Assuming contacts[0] contains the profile data
+
+        return {
+            name: clientProfile.profile.name,
+            profileImage: clientProfile.profile.profile_picture_url,
+        };
+    } catch (error) {
+        console.error('Error:', error);
+        return null;
+    }
+};
 
 
 export const markMessageAsRead = async (messageId) => {
@@ -223,42 +282,67 @@ export const getTemplates = async () => {
 //     // https://graph.facebook.com/oauth/access_token
 // }
 
-async function refreshToken() {
+export const getImageUrl = async (media_id) => {
+    const url = `https://graph.facebook.com/v20.0/${media_id}`;
 
     try {
-        const response = await fetch(tokenUrl, {
-            method: 'POST',
+        const response = await fetch(url, {
+            method: 'GET',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                grant_type: 'fb_exchange_token',
-                client_id: clientId,
-                client_secret: clientSecret,
-                fb_exchange_token: token
-            }),
+                'Authorization': `Bearer ${token}`
+            }
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to refresh token: ${response.statusText}`);
+            const error = await response.json();
+            console.error('Error fetching templates:', error);
+            return;
         }
 
         const data = await response.json();
-        const newToken = data.access_token;
-
-        // Save the new token to localStorage
-        localStorage.setItem('token', newToken);
-
-        // Store the time when the token was refreshed
-        const now = Date.now();
-        localStorage.setItem('lastRefreshTime', now);
-
-        return newToken;
+        console.log(data);
+        return data;
     } catch (error) {
-        console.error('Error refreshing token:', error);
-        throw new Error('Failed to refresh token');
+        console.error('Error:', error);
     }
-}
+};
+
+// async function refreshToken() {
+
+//     try {
+//         const response = await fetch(tokenUrl, {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/x-www-form-urlencoded',
+//             },
+//             body: new URLSearchParams({
+//                 grant_type: 'fb_exchange_token',
+//                 client_id: clientId,
+//                 client_secret: clientSecret,
+//                 fb_exchange_token: token
+//             }),
+//         });
+
+//         if (!response.ok) {
+//             throw new Error(`Failed to refresh token: ${response.statusText}`);
+//         }
+
+//         const data = await response.json();
+//         const newToken = data.access_token;
+
+//         // Save the new token to localStorage
+//         localStorage.setItem('token', newToken);
+
+//         // Store the time when the token was refreshed
+//         const now = Date.now();
+//         localStorage.setItem('lastRefreshTime', now);
+
+//         return newToken;
+//     } catch (error) {
+//         console.error('Error refreshing token:', error);
+//         throw new Error('Failed to refresh token');
+//     }
+// }
 
 
 // Function to get the token

@@ -22,11 +22,13 @@ import {
   faPaperPlane,
   faSmile,
   faCircleExclamation,
+  faSearch,
 } from "@fortawesome/free-solid-svg-icons";
-import { getTemplates, sendMessage } from "../../service/whatsappApi"; // Ensure this function returns a promise
+import { fetchClientProfile, getTemplates, sendMessage } from "../../service/whatsappApi"; // Ensure this function returns a promise
 import { useNavigate } from "react-router-dom";
 import io from "socket.io-client";
 const SOCKET_SERVER_URL = "https://modelpro.craftandcode.in/";
+// const SOCKET_SERVER_URL = "http://localhost:5000/";
 
 const userData = [
   { id: 1, name: "Akash Mishra", phone: "+919977927692" },
@@ -43,38 +45,27 @@ function Home() {
   const [template, setTemplate] = useState("");
   const [templatesData, setTemplatesData] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState({});
-  const [mobileView, setMobileView] = useState(false); // New state for mobile view
+  const [mobileView, setMobileView] = useState(false);
   const [selectedUser, setSelectedUser] = useState();
-
   const [headerParams, setHeaderParams] = useState([]);
   const [params, setParams] = useState([]);
-  // const [footerParams, setFooterParams] = useState([]);
-
+  const [chatFilter, setChatFilter] = useState("all_chats");
   const [socket, setSocket] = useState(null);
   const [show, setShow] = useState(false);
   const [modalStep, setModalStep] = useState(true);
-  const handleClose = () => setShow(false);
-  const handleShow = () => setShow(true);
-  // const token = localStorage.getItem('token');
-  // console.log("token: ", token);
-
-  // useEffect(() => {
-  //   localStorage.setItem('token', 'EAAQ2pVDAA4oBOzNBqhn8v2SU9z8ldbG03XsNRvu1oZC6CVZBIcD79xqz2CbdM2zv6NsKIJau3p1mm3RyqlaXipnIXVjZCHVGsZADL19TXaAKO4I4CBiX5GykXBckV1HWDtANOpkZAJbIYRvSmvGmIIYjMMxVNXooZARFv0CfosZCcZAJI6rl4vJmXZAP8MDqD7bFIOETLrxZCGb19uSRC1Iw8ZD')
-  // }, [])
 
   const navigate = useNavigate();
-
   const scrollRef = useRef(null);
+
+  const handleClose = () => setShow(false);
+  const handleShow = () => setShow(true);
 
   const SendTemplate = (val) => {
     let component = val.components;
 
-    // Initialize empty parameters
     let headerParams = [];
     let bodyParams = [];
-    // let footerParams = [];
 
-    // Function to extract parameters from text
     const extractParameters = (text) => {
       const regex = /{{(\d+)}}/g;
       let match;
@@ -87,7 +78,6 @@ function Home() {
       return parameters;
     };
 
-    // Iterate over the components to set headerParams, bodyParams, and footerParams
     component.forEach((item) => {
       switch (item.type) {
         case "HEADER":
@@ -96,23 +86,136 @@ function Home() {
         case "BODY":
           bodyParams = extractParameters(item.text);
           break;
-        // case "FOOTER":
-        //   footerParams = [item.text];
-        //   break;
         default:
-          // Handle other types or do nothing
           break;
       }
     });
 
-    // Set the state and other values
     setTemplate(val.name);
     setSelectedTemplate(val);
     setModalStep(false);
     setHeaderParams(headerParams);
     setParams(bodyParams);
-    // setFooterParams(footerParams);
   };
+
+  const handleSendMessage = () => {
+    if (!selectedUser) {
+      alert("Please select a user first");
+      return;
+    }
+
+    const to = selectedUser.phone;
+    const type = "text";
+    const content = message;
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const newMessage = {
+      userType: "admin",
+      text: content,
+      type: type,
+      timestamp: timestamp,
+      status: "sent",
+      id: null,
+    };
+
+    const updatedChatHistory = [...chatHistory, newMessage];
+    setChatHistory(updatedChatHistory);
+
+    localStorage.setItem(
+      `chatHistory_${selectedUser.id}`,
+      JSON.stringify(updatedChatHistory)
+    );
+
+    sendMessage(to, content, [], type) // Pass empty arrays for params as it's not a template
+      .then((id) => {
+        newMessage.status = "delivered";
+        newMessage.id = id;
+
+        const updatedChatHistory = [...chatHistory, newMessage];
+        setChatHistory(updatedChatHistory);
+
+        localStorage.setItem(
+          `chatHistory_${selectedUser.id}`,
+          JSON.stringify(updatedChatHistory)
+        );
+
+        setMessage("");
+      })
+      .catch((error) => {
+        newMessage.status = "failed";
+
+        const updatedChatHistory = [...chatHistory, newMessage];
+        setChatHistory(updatedChatHistory);
+
+        localStorage.setItem(
+          `chatHistory_${selectedUser.id}`,
+          JSON.stringify(updatedChatHistory)
+        );
+      });
+  };
+
+
+  const handleSendTemplate = () => {
+    if (!selectedUser) {
+      alert("Please select a user first");
+      return;
+    }
+
+    const to = selectedUser.phone;
+    const type = "template";
+    const content = template; // Template name
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const newMessage = {
+      userType: "admin",
+      text: content,
+      type: type,
+      timestamp: timestamp,
+      status: "sent",
+      id: null,
+      template: selectedTemplate
+    };
+
+    const updatedChatHistory = [...chatHistory, newMessage];
+    setChatHistory(updatedChatHistory);
+
+    localStorage.setItem(
+      `chatHistory_${selectedUser.id}`,
+      JSON.stringify(updatedChatHistory)
+    );
+
+    sendMessage(to, content, params, type, headerParams) // Pass params for template
+      .then((id) => {
+        newMessage.status = "delivered";
+        newMessage.id = id;
+
+        const updatedChatHistory = [...chatHistory, newMessage];
+        setChatHistory(updatedChatHistory);
+
+        localStorage.setItem(
+          `chatHistory_${selectedUser.id}`,
+          JSON.stringify(updatedChatHistory)
+        );
+
+        setTemplate("");
+        setParams([]);
+        setShow(false);
+        setModalStep(true);
+        setSelectedTemplate({});
+      })
+      .catch((error) => {
+        newMessage.status = "failed";
+
+        const updatedChatHistory = [...chatHistory, newMessage];
+        setChatHistory(updatedChatHistory);
+
+        localStorage.setItem(
+          `chatHistory_${selectedUser.id}`,
+          JSON.stringify(updatedChatHistory)
+        );
+      });
+  };
+
 
   const handleHeaderParamChange = (index, value) => {
     const newParams = [...headerParams];
@@ -126,22 +229,14 @@ function Home() {
     setParams(newParams);
   };
 
-  // const handleFooterParamChange = (index, value) => {
-  //   const newParams = [...params];
-  //   newParams[index] = value;
-  //   setFooterParams(newParams);
-  // }
-
   useEffect(() => {
-    // Define an async function inside useEffect
     const fetchData = async () => {
       try {
         if (show) {
-          // const token = await getToken();
           const data = await getTemplates();
 
           if (data && data.data) {
-            setTemplatesData(data.data); // Adjust based on API response structure
+            setTemplatesData(data.data);
           }
         }
       } catch (error) {
@@ -149,75 +244,8 @@ function Home() {
       }
     };
 
-    // Call the async function
     fetchData();
   }, [show]);
-
-  const handleSendMessage = () => {
-    if (!selectedUser) {
-      alert("Please select a user first");
-      return;
-    }
-
-    const to = selectedUser.phone;
-    const type = template ? "template" : "text";
-    const content = template || message;
-    const timestamp = Math.floor(Date.now() / 1000);
-
-    const newMessage = {
-      userType: "admin",
-      text: content,
-      type: type,
-      timestamp: timestamp,
-      status: "sent", // Initial status
-      id: null, // Placeholder for the message ID
-    };
-
-    const updatedChatHistory = [...chatHistory, newMessage];
-    setChatHistory(updatedChatHistory);
-
-    // Save chat history to local storage
-    localStorage.setItem(
-      `chatHistory_${selectedUser.id}`,
-      JSON.stringify(updatedChatHistory)
-    );
-
-    sendMessage(to, content, params, type, headerParams)
-      .then((id) => {
-        // Update status to 'delivered' and set the message ID
-        newMessage.status = "delivered";
-        newMessage.id = id;
-
-        // Update chat history with the modified newMessage
-        const updatedChatHistory = [...chatHistory, newMessage];
-        setChatHistory(updatedChatHistory);
-
-        // Save updated chat history to local storage
-        localStorage.setItem(
-          `chatHistory_${selectedUser.id}`,
-          JSON.stringify(updatedChatHistory)
-        );
-
-        // Clear fields after sending the message
-        setMessage("");
-        setTemplate("");
-        setParams([]);
-      })
-      .catch((error) => {
-        // Update status to 'failed'
-        newMessage.status = "failed";
-
-        // Update chat history with the modified newMessage
-        const updatedChatHistory = [...chatHistory, newMessage];
-        setChatHistory(updatedChatHistory);
-
-        // Save updated chat history to local storage
-        localStorage.setItem(
-          `chatHistory_${selectedUser.id}`,
-          JSON.stringify(updatedChatHistory)
-        );
-      });
-  };
 
   useEffect(() => {
     if (selectedUser) {
@@ -260,6 +288,8 @@ function Home() {
   };
 
   const handleMessageDesign = (item) => {
+    console.log("item: ", item.type);
+
     const extractFileName = (url) => {
       const regex = /\/o\/(.+?)\?/;
       const match = url.match(regex);
@@ -272,38 +302,80 @@ function Home() {
     const getFileIcon = (mimeType) => {
       switch (mimeType) {
         case "application/pdf":
-          return "📄"; // Placeholder for PDF icon
+          return "📄";
         default:
-          return "📁"; // Generic file icon for unknown types
+          return "📁";
       }
     };
 
     if (item.type === "text") {
-      return <>{item.text}</>;
+      return <span style={{ fontSize: "16px" }}>{item.text}</span>;
+    } else if (item.type === "template") {
+      return (
+        <div className="template-container">
+          {item.template.components.map((component, index) => {
+            if (component.type === "HEADER") {
+              return (
+                <div key={index} style={{ fontWeight: 'bold', fontSize: '18px', marginBottom: '10px' }}>
+                  {component.text.replace(/{{(\d+)}}/g, (match, p1) => component.example.header_text[p1 - 1] || match)}
+                </div>
+              );
+            } else if (component.type === "BODY") {
+              return (
+                <div key={index} style={{ marginBottom: '15px' }}>
+                  {component.text.replace(/{{(\d+)}}/g, (match, p1) => component.example.body_text[0][p1 - 1] || match)}
+                </div>
+              );
+            } else if (component.type === "FOOTER") {
+              return (
+                <div key={index} style={{ fontStyle: 'italic', marginBottom: '10px', color: "GrayText" }}>
+                  {component.text}
+                </div>
+              );
+            }
+            else if (component.type === "BUTTONS") {
+              return (
+                <div key={index} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {component.buttons.map((button, idx) => (
+                    <div className="w-100">
+                      <hr />
+                      <Button
+                        variant="outline-info"
+                        className="border-0 w-100"
+                        key={idx}
+                        href={button.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {button.text}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              );
+            } else {
+              return <div key={index}>Unknown component type</div>;
+            }
+          })}
+        </div>
+      );
     } else if (item.type === "video") {
-      return (
-        <>
-          <video src={item.url}>video</video>
-        </>
-      );
+      return <video src={item.url} controls style={{ maxWidth: '100%', marginTop: '10px' }}>video</video>;
     } else if (item.type === "image") {
-      return (
-        <>
-          <img src={item.url} alt="Image" />
-        </>
-      );
+      return <img src={item.url} alt="" style={{ maxWidth: '100%', marginTop: '10px' }} />;
     } else if (item.type === "question") {
       return (
         <>
-          {item.questionText}
+          <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>{item.questionText}</div>
           {item.options && item.options.length > 0 && (
             <Row className="mt-2">
               {item.options.map((option, idx) => (
-                <Col xs={12} sm={6} key={idx}>
+                <Col xs={12} sm={6} key={idx} className="mb-2">
                   <Button
                     variant={option.selected ? "success" : "primary"}
                     block
                     size="sm"
+                    style={{ width: '100%' }}
                   >
                     {option.option}
                   </Button>
@@ -315,139 +387,46 @@ function Home() {
       );
     } else if (item.type === "attachment") {
       return (
-        <>
-          <Row>
-            <Col xs={12}>
-              {item.mimeType === "image/png" ||
-              item.mimeType === "image/jpeg" ? (
-                <>
-                  {uploadState.status &&
-                  uploadState.name === extractFileName(item.url) ? (
-                    <Spinner animation="border" variant="primary" />
-                  ) : (
-                    <Image
-                      src={item.url}
-                      alt="Image"
-                      fluid
-                      style={{ maxWidth: "350px" }}
-                      onClick={() => {
-                        setFullScreenImage(item.url);
-                        setIsFullScreen(true);
-                      }}
-                    />
-                  )}
-                </>
+        <Row className="attachment-row" style={{ marginTop: '10px' }}>
+          <Col xs={12}>
+            {item.mimeType === "image/png" || item.mimeType === "image/jpeg" ? (
+              uploadState.status && uploadState.name === extractFileName(item.url) ? (
+                <Spinner animation="border" variant="primary" />
               ) : (
-                <>
-                  {uploadState.status &&
-                  uploadState.name === extractFileName(item.url) ? (
-                    <Spinner animation="border" variant="primary" />
-                  ) : (
-                    <Button
-                      href={item.url}
-                      download={extractFileName(item.url)}
-                      variant="link"
-                    >
-                      <span>{getFileIcon(item.mimeType)}</span>
-                      <small>{extractFileName(item.url)}</small>
-                    </Button>
-                  )}
-                </>
-              )}
-            </Col>
-          </Row>
-        </>
+                <Image
+                  src={item.url}
+                  alt="Image"
+                  fluid
+                  style={{ maxWidth: "350px", cursor: 'pointer' }}
+                  onClick={() => {
+                    setFullScreenImage(item.url);
+                    setIsFullScreen(true);
+                  }}
+                />
+              )
+            ) : (
+              uploadState.status && uploadState.name === extractFileName(item.url) ? (
+                <Spinner animation="border" variant="primary" />
+              ) : (
+                <Button
+                  href={item.url}
+                  download={extractFileName(item.url)}
+                  variant="link"
+                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                >
+                  <span style={{ marginRight: '5px' }}>{getFileIcon(item.mimeType)}</span>
+                  <small>{extractFileName(item.url)}</small>
+                </Button>
+              )
+            )}
+          </Col>
+        </Row>
       );
+    } else {
+      return <div>Unknown type</div>;
     }
   };
 
-  // const handleMessageDesign = (item) => {
-  //   const extractFileName = (url) => {
-  //     const regex = /\/o\/(.+?)\?/;
-  //     const match = url.match(regex);
-  //     const encodedPath = match ? match[1] : '';
-  //     const decodedPath = decodeURIComponent(encodedPath);
-  //     const pathSegments = decodedPath.split('/');
-  //     return pathSegments.pop();
-  //   };
-
-  //   const getFileIcon = (mimeType) => {
-  //     switch (mimeType) {
-  //       case "application/pdf":
-  //         return "📄"; // Placeholder for PDF icon
-  //       default:
-  //         return "📁"; // Generic file icon for unknown types
-  //     }
-  //   };
-
-  //   if (item.type === "text") {
-  //     return (
-  //       <>
-  //         {item.text}
-  //       </>
-  //     );
-  //   }
-  //   else if (item.type === "question") {
-  //     return (
-  //       <>
-  //         {item.questionText}
-  //         {item.options && item.options.length > 0 &&
-  //           <Row className="mt-2">
-  //             {item.options.map((option, idx) => (
-  //               <Col xs={12} sm={6} key={idx}>
-  //                 <Button
-  //                   variant={option.selected ? "success" : "primary"}
-  //                   block
-  //                   size="sm"
-  //                 >
-  //                   {option.option}
-  //                 </Button>
-  //               </Col>
-  //             ))}
-  //           </Row>
-  //         }
-  //       </>
-  //     );
-  //   } else if (item.type === "attachment") {
-  //     return (
-  //       <>
-  //         <Row>
-  //           <Col xs={12}>
-  //             {item.mimeType === "image/png" || item.mimeType === "image/jpeg" ? (
-  //               <>
-  //                 {uploadState.status && uploadState.name === extractFileName(item.url) ? (
-  //                   <Spinner animation="border" variant="primary" />
-  //                 ) : (
-  //                   <Image
-  //                     src={item.url}
-  //                     alt="Image"
-  //                     fluid
-  //                     style={{ maxWidth: "350px" }}
-  //                     onClick={() => {
-  //                       setFullScreenImage(item.url);
-  //                       setIsFullScreen(true);
-  //                     }}
-  //                   />
-  //                 )}
-  //               </>
-  //             ) : (
-  //               <>
-  //                 {uploadState.status && uploadState.name === extractFileName(item.url) ? (
-  //                   <Spinner animation="border" variant="primary" />
-  //                 ) : (
-  //                   <Button href={item.url} download={extractFileName(item.url)} variant="link">
-  //                     <span>{getFileIcon(item.mimeType)}</span>
-  //                     <small>{extractFileName(item.url)}</small>
-  //                   </Button>
-  //                 )}
-  //               </>
-  //             )}
-  //           </Col>
-  //         </Row>
-  //       </>
-  //     );
-  //   }
-  // };
 
   const formatTime = (date) => {
     return new Date(date * 1000).toLocaleTimeString(undefined, {
@@ -474,7 +453,6 @@ function Home() {
       setChatHistory((prevMessages) => {
         const updatedMessages = [...prevMessages, data];
 
-        // Save updated chat history to local storage
         localStorage.setItem(
           `chatHistory_${selectedUser.id}`,
           JSON.stringify(updatedMessages)
@@ -494,7 +472,6 @@ function Home() {
             : message
         );
 
-        // Save updated chat history to local storage
         localStorage.setItem(
           `chatHistory_${selectedUser.id}`,
           JSON.stringify(updatedMessages)
@@ -511,7 +488,6 @@ function Home() {
 
   useEffect(() => {
     if (socket && chatHistory.length > 0) {
-      // Function to mark messages as read
       const markMessagesAsRead = () => {
         chatHistory.forEach((message) => {
           if (message.status !== "read") {
@@ -523,7 +499,6 @@ function Home() {
         });
       };
 
-      // Call this function when chatHistory updates
       markMessagesAsRead();
     }
   }, [chatHistory, socket]);
@@ -539,7 +514,7 @@ function Home() {
       setMobileView(window.innerWidth < 768);
     };
 
-    handleResize(); // Initial check
+    handleResize();
     window.addEventListener("resize", handleResize);
 
     return () => {
@@ -547,57 +522,80 @@ function Home() {
     };
   }, []);
 
+  // const fetchAllClientProfile = async () => {
+  //   const result = await fetchClientProfile("+919977927692")
+  //   console.log("result: ", result);
+  // }
+
+  // useEffect(() => {
+  //   fetchAllClientProfile()
+  // }, [])
+
   return (
     <>
-      <div className="bg-light overflow-hidden vh-100">
-        <Row className="h-100 g-0">
-          {(!mobileView || !selectedUser) && (
-            <Col xs={12} md={3}>
-              <div className="bg-white d-flex flex-column p-3 h-100">
-                <InputGroup className="mb-3">
-                  <FormControl placeholder="Search" />
-                </InputGroup>
-                <Form.Select aria-label="Default select example">
-                  <option>Open this select menu</option>
-                  <option value="1">One</option>
-                  <option value="2">Two</option>
-                  <option value="3">Three</option>
-                </Form.Select>
-                <hr />
-                {userData.map((data, index) => (
-                  <div
-                    key={index}
-                    onClick={() => setSelectedUser(data)}
-                    style={{
-                      cursor: "pointer",
-                      background:
-                        selectedUser?.id === data.id ? "#f1f1f1" : "#fafafa",
-                      borderLeft:
-                        selectedUser?.id === data.id
-                          ? "5px solid #008857"
-                          : "5px solid transparent",
-                    }}
-                    className="d-flex p-2 rounded align-items-center mb-3"
-                  >
-                    <div className="me-2">
-                      <Image
-                        src="https://via.placeholder.com/50"
-                        roundedCircle
-                      />
-                    </div>
-                    <div>
-                      <div>{data.name}</div>
-                      <small className="text-muted">{data.phone}</small>
-                    </div>
+      <Row className="h-100 g-0">
+        {(!mobileView || !selectedUser) && (
+          <Col xs={12} md={3}>
+            <div className="bg-white d-flex flex-column p-3 h-100 shadow-sm rounded">
+              <InputGroup className="mb-3">
+                <FormControl
+                  placeholder="Search"
+                  aria-label="Search"
+                  aria-describedby="search-icon"
+                />
+                <InputGroup.Text id="search-icon">
+                  <FontAwesomeIcon
+                    icon={faSearch}
+                  />
+                </InputGroup.Text>
+              </InputGroup>
+              <Form.Select
+                value={chatFilter}
+                onChange={(e) => setChatFilter(e.target.value)}
+                aria-label="Chat Filter"
+                className="mb-3"
+              >
+                <option value="all_chats">All Chats</option>
+                <option value="pending">Pending</option>
+                <option value="open">Open</option>
+                <option value="solved">Solved</option>
+              </Form.Select>
+              <hr />
+              {userData.map((data, index) => (
+                <div
+                  key={index}
+                  onClick={() => setSelectedUser(data)}
+                  style={{
+                    cursor: 'pointer',
+                    background:
+                      selectedUser?.id === data.id
+                        ? '#e9f7ef'
+                        : '#ffffff',
+                  }}
+                  className="d-flex p-2 rounded align-items-center mb-2 border hover-shadow"
+                >
+                  <div className="me-2">
+                    <Image
+                      src={data.profileImage || 'https://via.placeholder.com/50'}
+                      // roundedCircle
+                      width={40}
+                      height={40}
+                    />
                   </div>
-                ))}
-              </div>
-            </Col>
-          )}
-          {selectedUser && (
-            <Col xs={12} md={9}>
-              <div className="d-flex flex-column position-relative h-100">
-                <div className="bg-success text-white p-3 d-flex align-items-center justify-content-between">
+                  <div>
+                    <div className="fw-bold">{data.name}</div>
+                    <small style={{ fontSize: "12px" }} className="text-muted">{data.phone}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Col>
+        )}
+        <Col xs={12} md={9}>
+          <div className="bg-light d-flex flex-column position-relative h-100 px-1">
+            {selectedUser && (
+              <>
+                <div className="p-3 bg-white d-flex align-items-center justify-content-between">
                   {mobileView && (
                     <Button onClick={() => setSelectedUser(null)}>Back</Button>
                   )}
@@ -608,7 +606,7 @@ function Home() {
                 <div
                   className="flex-grow-1 overflow-auto px-1"
                   ref={scrollRef}
-                  style={{ maxHeight: "calc(100vh - 120px)" }}
+                  style={{ maxHeight: mobileView ? "calc(100vh - 210px)" : "calc(100vh - 180px)" }}
                 >
                   <ListGroup>
                     {chatHistory.length === 0 && (
@@ -619,7 +617,7 @@ function Home() {
                       const isNewDay =
                         !prevItem ||
                         formatDate(item.timestamp) !==
-                          formatDate(prevItem.timestamp);
+                        formatDate(prevItem.timestamp);
                       return (
                         <React.Fragment key={index}>
                           {isNewDay && (
@@ -630,24 +628,23 @@ function Home() {
                             </div>
                           )}
                           <div
-                            className={`d-flex align-items-end ${
-                              item.userType === "admin"
-                                ? "flex-row-reverse"
-                                : ""
-                            } mb-2`}
+                            className={`d-flex align-items-end ${item.userType === "admin"
+                              ? "flex-row-reverse"
+                              : ""
+                              } mb-4`}
                           >
                             <div
                               className={`pt-2 px-2 pb-1 text-start shadow-sm`}
                               style={{
-                                maxWidth: "70%",
+                                maxWidth: mobileView ? "70%" : "40%",
                                 wordBreak: "break-word",
                                 borderRadius:
                                   item.userType === "admin"
-                                    ? "10px 2px 10px 2px"
-                                    : "2px 10px 2px 10px",
+                                    ? "20px 20px 2px 20px"
+                                    : "2px 20px 20px 20px",
                                 backgroundColor:
                                   item.userType === "admin"
-                                    ? "#68d2669c"
+                                    ? "#dcf1e5"
                                     : "#fff",
                               }}
                             >
@@ -701,7 +698,7 @@ function Home() {
                   </ListGroup>
                 </div>
                 {selectedUser && (
-                  <div className="bg-light p-3 d-flex align-items-center">
+                  <div className="bg-light p-1 p-lg-3 d-flex align-items-center">
                     <Button variant="outline-success" onClick={handleShow}>
                       Template
                     </Button>
@@ -727,20 +724,20 @@ function Home() {
                     </InputGroup>
                   </div>
                 )}
-              </div>
-            </Col>
-          )}
-          {!mobileView && !selectedUser && (
-            <Col
-              className="d-flex justify-content-center align-items-center"
-              xs={12}
-              md={9}
-            >
-              <h6>Select a user to start chatting</h6>
-            </Col>
-          )}
-        </Row>
-      </div>
+              </>
+            )}
+          </div>
+        </Col>
+        {!mobileView && !selectedUser && (
+          <Col
+            className="d-flex justify-content-center align-items-center"
+            xs={12}
+            md={9}
+          >
+            <h6>Select a user to start chatting</h6>
+          </Col>
+        )}
+      </Row>
       <FullScreenView />
 
       <Modal size="lg" centered show={show} onHide={handleClose}>
@@ -917,7 +914,7 @@ function Home() {
           >
             Back
           </Button>
-          <Button variant="primary" onClick={() => setShow(false)}>
+          <Button variant="primary" onClick={() => handleSendTemplate()}>
             Select
           </Button>
         </Modal.Footer>
